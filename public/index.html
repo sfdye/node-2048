@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>2048</title>
+
+  <link href="style/main.css" rel="stylesheet" type="text/css">
+  <link rel="shortcut icon" href="favicon.ico">
+  <link rel="apple-touch-icon" href="meta/apple-touch-icon.png">
+  <link rel="apple-touch-startup-image" href="meta/apple-touch-startup-image-640x1096.png" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)"> <!-- iPhone 5+ -->
+  <link rel="apple-touch-startup-image" href="meta/apple-touch-startup-image-640x920.png"  media="(device-width: 320px) and (device-height: 480px) and (-webkit-device-pixel-ratio: 2)"> <!-- iPhone, retina -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+  <meta name="HandheldFriendly" content="True">
+  <meta name="MobileOptimized" content="320">
+  <meta name="viewport" content="width=device-width, target-densitydpi=160dpi, initial-scale=1.0, maximum-scale=1, user-scalable=no, minimal-ui">
+</head>
+<body>
+  <div id="instruction">
+  <center>
+    <h2>Scan QR Code with your app to start the game!</h2>
+    <br />
+    <div id="qrcode"></div>
+  </center>
+  </div>
+
+  <div class="container" id="board">
+    <div class="heading">
+      <h1 class="title">2048</h1>
+      <div class="scores-container">
+        <div class="score-container">0</div>
+        <div class="timer-container">60</div>
+        <div class="best-container">0</div>
+      </div>
+
+    </div>
+
+    <div class="above-game">
+      <p id="welcome" class="game-intro">Move tiles from your mobile devices</p>
+      <a class="restart-button">New Game</a>
+    </div>
+
+    <div class="game-container">
+      <div class="game-message">
+        <p></p>
+        <div class="lower">
+	        <a class="keep-playing-button">Keep going</a>
+          <a class="retry-button">Try again</a>
+        </div>
+      </div>
+
+      <div class="grid-container" id="grid-container">
+        <div class="grid-row">
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+        </div>
+        <div class="grid-row">
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+        </div>
+        <div class="grid-row">
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+        </div>
+        <div class="grid-row">
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+          <div class="grid-cell"></div>
+        </div>
+      </div>
+
+      <div class="tile-container">
+
+      </div>
+    </div>
+
+  </div>
+
+  <script src="js/bind_polyfill.js"></script>
+  <script src="js/classlist_polyfill.js"></script>
+  <script src="js/animframe_polyfill.js"></script>
+  <script src="js/keyboard_input_manager.js"></script>
+  <script src="js/html_actuator.js"></script>
+  <script src="js/grid.js"></script>
+  <script src="js/tile.js"></script>
+  <script src="js/local_storage_manager.js"></script>
+  <script src="js/game_manager.js"></script>
+  <script src="js/application.js"></script>
+  <script src="http://code.jquery.com/jquery-1.11.1.js"></script>
+  <script src="js/jquery.qrcode.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    connected = false;
+    var channelName;
+
+    socket = io();
+
+    $('#board').hide();
+    $(".restart-button").hide();
+    $(".best-container").hide();
+
+    // mobile
+    if (/Android|webOS|iPhone|iPad|iPod|BlackBerry/i.test(navigator.userAgent)) {
+      document.getElementById('grid-container').style.display = "none";
+
+      // $(".game-container").hide();
+      $(".tile-container").hide();
+      $(".scores-container").hide();
+
+      var id = parseInt(window.location.search.substring(1).split("=")[1]);
+
+      socket.emit('joinChannel', id);
+
+    }
+    // PC
+    else {
+      channelName = parseInt(Math.random() * 100000);
+      jQuery('#qrcode').qrcode({width: 300,height: 300,text: "http://" + window.location.host + "/?id=" + channelName});
+      // jQuery('#qrcode').qrcode({width: 300,height: 300,text: "http://liuyang-macbook-pro.local:3000/?id=" + channelName});
+      socket.emit('setChannel', channelName);
+    }
+
+    // move tiles
+    socket.on('move', function(dir){
+      gm.move(dir);
+    });
+
+    function display() {
+      timer -= 1;
+      if (timer < 0) {
+        timer = 0;
+        gm.actuator.message(false);
+      }
+      else {
+        document.querySelector(".timer-container").textContent = timer;
+        setTimeout("display()", 1000);
+      }
+    }
+
+    // prepare and start the game
+    socket.on('start', function(msg) {
+      $('#instruction').hide();
+      $('#board').show();
+      // Wait till the browser is ready to render the game (avoids glitches)
+      window.requestAnimationFrame(function () {
+        gm = new GameManager(4, KeyboardInputManager, HTMLActuator, LocalStorageManager);
+        gm.restart();
+        timer = 60;
+        display();
+      });
+
+
+    });
+
+
+
+    // refresh page when client disconnects
+    socket.on('stop', function() {
+      location.reload();
+    });
+
+    var user_token;
+    socket.on('welcome', function(data) {
+      document.getElementById('welcome').innerHTML = 'Welcome, ' + data.name + '!';
+      user_token = data.token;
+    });
+
+  </script>
+
+</body>
+</html>
